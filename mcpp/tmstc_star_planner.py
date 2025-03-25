@@ -471,14 +471,17 @@ def tmst(G: nx.Graph, ):
 
     candidate_edges = set(G.edges) - set(T.edges)
 
-    costs = calc_costs(candidate_edges, T)
-
     # Merge bricks
     while m > 1:
+        costs = calc_costs(candidate_edges, T)
+        
         for edge in sorted(costs, key=costs.get):
             if not nx.has_path(T, edge[0], edge[1]):
                 T.add_edge(edge[0], edge[1], weight=G.edges[edge]['weight'])
-                # TODO: calc costs igen for att uppdatera
+                candidate_edges.remove(edge)
+                break
+            else:
+                candidate_edges.remove(edge)
                 
         m -= 1
     
