@@ -22,7 +22,7 @@ def test(name, G: nx.Graph, R, obs_graph):
     plans = planner.allocate()
     paths, weights = planner.simulate(plans)
     
-    paths_turns = []
+    paths_turns = [None]*len(R)
     for i, path in enumerate(paths):
         turn_path = [(R[i][0],R[i][1] - 1)]
         for node in path:
@@ -53,31 +53,43 @@ def test(name, G: nx.Graph, R, obs_graph):
         paths_turns[i] = path_turns
             
 
-        
-    simulation(planner, paths, weights, name, 0.03, obs_graph, False, True)
+    is_show = True 
+    #simulation(planner, paths, weights, name, 0.03, obs_graph, False, True)
 
     show_result(planner.get_tree(), paths, len(R))
     simulation(
-        planner, paths, weights, 'Grid Map #1 - MSTC-NB', 0.03,
-        obs_graph, False, False)
+        planner, paths, weights, name, 0.03,
+        obs_graph, False, is_show)
     print(f'{name} overlapping ratio: {calc_overlapping_ratio(paths, planner.rho)}')
+
+    total_turns = 0
+    total_degrees = 0
+    for path_turns in paths_turns:
+        print("path_rutns: ", path_turns)
+        for k, v in path_turns.items():
+            total_degrees += k*v
+            total_turns += v
+    print(f'{name} number of turns: {total_turns}')
+    print(f'{name} number of degrees for turns: {total_degrees}')
+    
     print('\n')
 
 
 #prefix = 'GRID_10x10_WEIGHTED'
-#prefix = 'GRID_20x20_UNWEIGHTED_FREE'
-prefix = 'example1'
+prefix = 'GRID_20x20_UNWEIGHTED_FREE'
+# prefix = 'GRID_10x10_WEIGHTED'
+# prefix = 'example1'
 tmstc_star_report = 'tmstc_report4x3'
 #R = [(1, 0), (2, 0), (3, 0), (4, 0)]
 #R = [(0,0), (1,0), (2,0), (3,0)]
-R = [(0,0), (1,0)]
+R = [(0,0)]
 G, x, y = nx_graph_read(f'data/nx_graph/{prefix}.graph')
 obs_graph = nx.grid_2d_graph(int (x), int (y))
 for node in G.nodes():
     obs_graph.remove_node(node)
 
 # Run MSTC-Star
-test('MSTC-Star', G, R, obs_graph)
+# test('MSTC-Star', G, R, obs_graph)
 
 # Run TMSTC-Star
 test('TMSTC-Star', G, R, obs_graph)
