@@ -16,7 +16,7 @@ class TMSTCStarPlanner(MSTCStarPlanner):
 
         self.H = self.generate_decomposed_graph(self.G, self.R)
         
-        graph_plot(tmst(G), True)
+        # graph_plot(tmst(G), True)
         self.rho = self.generate_cover_trajectory(R[0], tmst(G))
 
         self.cut_off_opt = cut_off_opt

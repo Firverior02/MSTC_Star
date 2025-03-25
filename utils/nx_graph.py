@@ -293,9 +293,13 @@ def simulation(
             uncovered.add(sn)
 
     def animate(ti):
+        
+        yaw_vec = 0
         ts = ti * dt
+        prev_ts = (ti - 1) * dt if ti > 0 else ti * dt
         for i in range(k):
             last_coord_idx, cur_state = robots[i].get_cur_state(ts)
+            yaw_vec += cur_state.yaw
             xs = xs_vec[i][:last_coord_idx+1] + (cur_state.x, )
             ys = ys_vec[i][:last_coord_idx+1] + (cur_state.y, )
             # texts[i].set_text(f'R{i}: ')
