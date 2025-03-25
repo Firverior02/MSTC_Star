@@ -10,6 +10,14 @@ from utils.disjoint_set import DisjointSet
 
 def nx_graph_write(G: nx.Graph, filepath):
     f = open(filepath, 'w')
+    
+    x, y = -1
+    for node in G.nodes:
+        if node[0] > x: 
+            x = node[0]
+        if node[1] > y:
+            y = node[1]
+    f.write(f'{x} {y}\n')
     f.writelines('#'.join([str(node) for node in G.nodes()]) + '\n')
     for s, t in G.edges():
         f.writelines('#'.join([str(s), str(t), str(G[s][t]['weight'])])+'\n')
@@ -20,11 +28,12 @@ def nx_graph_read(filepath):
     G = nx.Graph()
     f = open(filepath, 'r')
     lines = f.readlines()
-    for node_str in lines[0].split('#'):
+    x, y = lines[0].split()
+    for node_str in lines[1].split('#'):
         node_x, node_y = node_str.strip().split(', ')
         # G.add_node((int(node_x[1:]), int(node_y[:-1])))
         G.add_node((float(node_x[1:]), float(node_y[:-1])))
-    for edge_str in lines[1:]:
+    for edge_str in lines[2:]:
         s, t, w = edge_str.strip().split('#')
         sx, sy = s.split(', ')
         # s = (int(sx[1:]), int(sy[:-1]))
@@ -34,7 +43,7 @@ def nx_graph_read(filepath):
         t = (float(tx[1:]), float(ty[:-1]))
         G.add_edge(s, t, weight=float(w))
 
-    return G
+    return G, x, y
 
 
 def mst(G: nx.Graph):
