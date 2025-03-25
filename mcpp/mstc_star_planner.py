@@ -15,6 +15,7 @@ class MSTCStarPlanner(STCPlanner):
         self.capacity = cap
 
         self.H = self.generate_decomposed_graph(self.G, self.R)
+        graph_plot(mst(G), True)
         self.rho = self.generate_cover_trajectory(R[0], mst(G))
 
         self.cut_off_opt = cut_off_opt
@@ -215,6 +216,9 @@ class MSTCStarPlanner(STCPlanner):
             r_mid.append(ri)
 
         return r_mid if d_ri == 1 else list(reversed(r_mid))
+    
+    def get_tree(self):
+        return mst(self.G)
 
 
 def test_MSTC_STAR(prefix, R, cap, obs_graph=nx.Graph(), is_write=False, is_show=False):

@@ -244,13 +244,13 @@ def simulation(
             font={'size': 8})
 
         # MST of spanning graph
-        M = mst(planner.G)
+        M = planner.get_tree()
         for s, t in M.edges():
             x1, y1 = s
             x2, y2 = t
             ax.plot([x1, x2], [y1, y2], '-ok', mfc='r')
         # covering nodes
-        rho = planner.generate_cover_trajectory(R[0], mst(planner.G))
+        rho = planner.generate_cover_trajectory(R[0], planner.get_tree())
         for cn_x, cn_y in rho:
             ax.plot(cn_x, cn_y, 'o', mec='k', mfc='w', ms=5)
         # obstacle graph
