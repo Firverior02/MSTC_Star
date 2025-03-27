@@ -2,6 +2,7 @@ import time
 
 import networkx as nx
 import numpy as np
+
 from mcpp.mstc_star_planner import MSTCStarPlanner
 from mcpp.tmstc_star_planner import TMSTCStarPlanner
 from utils.nx_graph import (calc_overlapping_ratio, graph_plot, mst,
@@ -22,8 +23,41 @@ def test(name, G: nx.Graph, R, obs_graph):
     plans = planner.allocate()
     paths, weights = planner.simulate(plans)
     
+    plans_list = []
+    for plan in plans:
+        plans_list.append(plans[plan])
+    
+    paths_turns = calc_num_turns(paths)
+            
+
+    is_show = True 
+    #simulation(planner, paths, weights, name, 0.03, obs_graph, False, True)
+
+    show_result(planner.get_tree(), paths, len(R))
+    simulation(
+        planner, paths, weights, name, 0.03,
+        obs_graph, False, is_show)
+    print(f'{name} overlapping ratio: {calc_overlapping_ratio(paths, planner.rho)}')
+
+    total_turns = 0
+    total_degrees = 0
+    for path_turns in paths_turns:
+        print("path_rutns: ", path_turns)
+        for k, v in path_turns.items():
+            total_degrees += k*v
+            if not k == 0:
+                total_turns += v
+    print(f'{name} number of turns: {total_turns}')
+    print(f'{name} number of degrees for turns: {total_degrees}')
+    
+    print('\n')
+
+
+
+def calc_num_turns(paths):
     paths_turns = [None]*len(R)
     for i, path in enumerate(paths):
+        turn_path = []
         turn_path = [(R[i][0],R[i][1] - 1)]
         for node in path:
             turn_path.append(node)
@@ -51,50 +85,25 @@ def test(name, G: nx.Graph, R, obs_graph):
             path_turns[degrees] += 1
         
         paths_turns[i] = path_turns
-            
-
-    is_show = True 
-    #simulation(planner, paths, weights, name, 0.03, obs_graph, False, True)
-
-    show_result(planner.get_tree(), paths, len(R))
-    simulation(
-        planner, paths, weights, name, 0.03,
-        obs_graph, False, is_show)
-    print(f'{name} overlapping ratio: {calc_overlapping_ratio(paths, planner.rho)}')
-
-    total_turns = 0
-    total_degrees = 0
-    for path_turns in paths_turns:
-        print("path_rutns: ", path_turns)
-        for k, v in path_turns.items():
-            total_degrees += k*v
-            total_turns += v
-    print(f'{name} number of turns: {total_turns}')
-    print(f'{name} number of degrees for turns: {total_degrees}')
-    
-    print('\n')
+    return paths_turns
 
 
-#prefix = 'GRID_10x10_WEIGHTED'
-prefix = 'GRID_20x20_UNWEIGHTED_FREE'
-# prefix = 'GRID_10x10_WEIGHTED'
+
+prefix = '30_ROOMS/5x5/ROOM_5x5_30_1'
+#prefix = 'GRID_20x20_UNWEIGHTED_FREE'
+# prefix = 'GRID_5x5_FREE'
 # prefix = 'example1'
 tmstc_star_report = 'tmstc_report4x3'
 #R = [(1, 0), (2, 0), (3, 0), (4, 0)]
 #R = [(0,0), (1,0), (2,0), (3,0)]
-R = [(0,0)]
-G, x, y = nx_graph_read(f'data/nx_graph/{prefix}.graph')
+R = [(0,0), (0,1)]
+G, x, y = nx_graph_read(f'data/rooms/{prefix}.graph')
 obs_graph = nx.grid_2d_graph(int (x), int (y))
 for node in G.nodes():
     obs_graph.remove_node(node)
 
 # Run MSTC-Star
-# test('MSTC-Star', G, R, obs_graph)
+test('MSTC-Star', G, R, obs_graph)
 
 # Run TMSTC-Star
 test('TMSTC-Star', G, R, obs_graph)
-
-
-
-
-
