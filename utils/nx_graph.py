@@ -1,26 +1,26 @@
 import math
 
-import networkx as nx
 import matplotlib.animation
 import matplotlib.pyplot as plt
+import networkx as nx
 
-from utils.robot import Robot
 from utils.disjoint_set import DisjointSet
+from utils.robot import Robot
 
 
 def nx_graph_write(G: nx.Graph, filepath):
     f = open(filepath, 'w')
     
-    x, y = -1
+    x, y = -1, -1
     for node in G.nodes:
         if node[0] > x: 
             x = node[0]
         if node[1] > y:
             y = node[1]
-    f.write(f'{x} {y}\n')
+    f.write(f'{x+1} {y+1}\n')
     f.writelines('#'.join([str(node) for node in G.nodes()]) + '\n')
     for s, t in G.edges():
-        f.writelines('#'.join([str(s), str(t), str(G[s][t]['weight'])])+'\n')
+        f.writelines('#'.join([str(s), str(t), '1'])+'\n')
     f.close()
 
 
@@ -76,8 +76,8 @@ def mst(G: nx.Graph):
 
 def navigate(G, start, goal):
     def dist(p, q):
-        # return abs(p[0]-q[0]) + abs(p[1]-q[1])
-        return math.hypot(p[0]-q[0], p[1]-q[1])
+        return abs(p[0]-q[0]) + abs(p[1]-q[1])
+        # return math.hypot(p[0]-q[0], p[1]-q[1])
 
     return nx.astar_path(G, start, goal, heuristic=dist, weight='weight')
 
@@ -263,6 +263,8 @@ def simulation(
         for cn_x, cn_y in rho:
             ax.plot(cn_x, cn_y, 'o', mec='k', mfc='w', ms=5)
         # obstacle graph
+        for n in OG.nodes():
+            ax.plot(n[0], n[1], 'xk', ms=10, mew=3)
         for s, t in OG.edges():
             x1, y1 = s
             x2, y2 = t

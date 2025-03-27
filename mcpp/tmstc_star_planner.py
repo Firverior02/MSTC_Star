@@ -178,6 +178,7 @@ import time
 
 import matplotlib.pyplot as plt
 import networkx as nx
+
 from mcpp.stc_planner import STCPlanner
 from utils.nx_graph import graph_plot, navigate
 
@@ -214,7 +215,7 @@ class TMSTCStarPlanner(STCPlanner):
 
         if self.cut_off_opt:
             _, weights = self.simulate(plans)
-            self.__optimal_cut_opt(weights, plans, debug=True)
+            self.__optimal_cut_opt(weights, plans, debug=False)     # TODO: ändra tillbaka till True
 
         self.__write_alloc_file(plans, alloc_filename)
 
@@ -474,11 +475,16 @@ def tmst(G: nx.Graph, ):
     # Merge bricks
     while m > 1:
         costs = calc_costs(candidate_edges, T)
-        
+        # print("Costs:")
+        # for e in sorted(costs, key=costs.get):
+        #     print(f"\t{e}, {costs[e]}")
+        # print()
         for edge in sorted(costs, key=costs.get):
+            # print(f"Considering edge {edge}, Cost: {costs[edge]}")
             if not nx.has_path(T, edge[0], edge[1]):
                 T.add_edge(edge[0], edge[1], weight=G.edges[edge]['weight'])
                 candidate_edges.remove(edge)
+                # print(f"Adding edge {edge} , Cost: {costs[edge]}")
                 break
             else:
                 candidate_edges.remove(edge)
