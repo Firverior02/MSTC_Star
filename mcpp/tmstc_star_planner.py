@@ -10,16 +10,18 @@ from utils.nx_graph import graph_plot, navigate
 
 class TMSTCStarPlanner(MSTCStarPlanner):
     def __init__(self, G: nx.Graph, k, R, cap, cut_off_opt=True):
-        self.G = G
-        self.k = k
-        self.R = R
+        self.G = G  # Spanning Graph
+        self.k = k  # Num robots
+        self.R = R  # Depot positions for robots
         self.capacity = cap
 
+        # Generate coverage graph
         self.H = self.generate_decomposed_graph(self.G, self.R)
         
-        # graph_plot(tmst(G), True)
+        # 
         self.rho = self.generate_cover_trajectory(R[0], tmst(G))
 
+        # Find cut off points
         self.cut_off_opt = cut_off_opt
         
     def get_tree(self):
@@ -27,19 +29,34 @@ class TMSTCStarPlanner(MSTCStarPlanner):
 
 
 
-def segments_share_endpoint(seg1, seg2):
-    # Returns True if seg1 and seg2 share an endpoint
-    return seg1[0] in seg2 or seg1[1] in seg2
 
 
-def are_disjoint(edge, graph: nx.Graph):
-    return nx.has_path(graph, edge[0], edge[1])
+
+
+def tmst(G: nx.Graph):
+    # Create bipartite graph I
+    I, H, _, flow_dict = generate_bipartite_graph(G)
     
+    # Compute maximum matching
+    matching = nx.algorithms.bipartite.maximum_matching(I, top_nodes=H)
+
+    # Compute minimum vertex cover using matching (König's theorem)
+    minimum_vertex_cover = nx.algorithms.bipartite.to_vertex_cover(I, matching, top_nodes=H)
+
+    # Compute maximum independent set as the complement
+    max_independent_set = set(I.nodes()) - set(minimum_vertex_cover)
+
+    # Visualization
+    # _visualize_bipartite_graph(H, V, F, minimum_vertex_cover, max_independent_set)
+    
+    # Merge bricks
+    T = merge_bricks(G, max_independent_set, flow_dict)
+    
+    return T
 
 
-def tmst(G: nx.Graph, ):
-    # Create bipartite graph B
-    F = nx.Graph()
+def generate_bipartite_graph(G: nx.Graph):
+    I = nx.Graph()
     H = set()
     V = set()
     flow_dict = {}
@@ -47,7 +64,7 @@ def tmst(G: nx.Graph, ):
     h_index = 1
     v_index = 1
 
-    # Step 1: Separate H and V segments
+    # Separate H and V segments
     for u, v in G.edges:
         if u[0] == v[0]:  # Horizontal segment
             node_name = f'h{h_index}'
@@ -60,78 +77,71 @@ def tmst(G: nx.Graph, ):
             flow_dict[node_name] = (u, v)
             v_index += 1
 
-    # Step 2: Add edges between H and V if they share an endpoint
+    # Add edges between H and V if they share an endpoint
     for node in H.union(V):
-        F.add_node(node)
+        I.add_node(node)
     for h in H:
         for v in V:
-            if segments_share_endpoint(flow_dict[h], flow_dict[v]):
-                F.add_edge(h, v)
-
-    # Assign bipartite sets with correct attribute name
-    nx.set_node_attributes(F, {node: 0 for node in H}, name='bipartite')
-    nx.set_node_attributes(F, {node: 1 for node in V}, name='bipartite')
-
-
-    # Step 3: Compute maximum matching
-    matching = nx.algorithms.bipartite.maximum_matching(F, top_nodes=H)
-    # print("Maximum Matching:", matching)
-
-    # Step 4: Compute minimum vertex cover using matching (König's theorem)
-    minimum_vertex_cover = nx.algorithms.bipartite.to_vertex_cover(F, matching, top_nodes=H)
-    # print("Minimum Vertex Cover:", minimum_vertex_cover)
-
-    # Step 5: Compute maximum independent set as the complement
-    all_nodes = set(F.nodes())
-    max_independent_set = all_nodes - set(minimum_vertex_cover)
-    # print("Maximum Independent Set:", max_independent_set)
-
-    # Step 6: Visualization
-    #visualize_bipartite_graph(H, V, F, minimum_vertex_cover, max_independent_set)
+            if _segments_share_endpoint(flow_dict[h], flow_dict[v]):
+                I.add_edge(h, v)
     
+    return I, H, V, flow_dict
+
+
+def merge_bricks(G: nx.Graph, max_independent_set, flow_dict):
+    # Create bricks
     T = nx.Graph()
     for node in G.nodes:
        T.add_node(node)
     for node in max_independent_set:
        T.add_edge(flow_dict[node][0], flow_dict[node][1], weight=G.edges[flow_dict[node]]['weight'])      
     
-        
+    # Number of bricks     
     m = nx.number_connected_components(T)
 
+    # All possible connecting edges
     candidate_edges = set(G.edges) - set(T.edges)
 
-    # Merge bricks
+    # Connect bricks
     while m > 1:
-        costs = calc_costs(candidate_edges, T)
+        # Update costs
+        costs = _calc_costs(candidate_edges, T)
+
+        # Add optimal edge
         for edge in sorted(costs, key=costs.get):
             if not nx.has_path(T, edge[0], edge[1]):
                 T.add_edge(edge[0], edge[1], weight=G.edges[edge]['weight'])
                 candidate_edges.remove(edge)
                 break
             else:
-                candidate_edges.remove(edge)
-                
+                candidate_edges.remove(edge)      
         m -= 1
     
     return T
 
-def calc_costs(candidate_edges, T: nx.Graph):
+
+
+
+
+def _calc_costs(candidate_edges, T: nx.Graph):
+    """Calculate cost of adding edge between bricks """
     costs = {}
     for edge in candidate_edges:
-        f_i = f(edge[0], T)
-        f_j = f(edge[1], T)
+        f_i = _f(edge[0], T)
+        f_j = _f(edge[1], T)
 
         temp = T.copy()
         temp.add_edge(edge[0], edge[1])
         
-        fp_i = f(edge[0], temp)
-        fp_j = f(edge[1], temp)
+        fp_i = _f(edge[0], temp)
+        fp_j = _f(edge[1], temp)
 
         costs[edge] = fp_i + fp_j - f_i - f_j
     return costs
 
 
-def f(node, T: nx.Graph):
+def _f(node, T: nx.Graph):
+    """Number of turns around tree vertex (node)"""
     if T.degree(node) == 1 or T.degree(node) == 3:
         return 2
     elif T.degree(node) == 4:
@@ -157,7 +167,7 @@ def f(node, T: nx.Graph):
             return 2
         
 
-def visualize_bipartite_graph(H, V, B, vertex_cover, independent_set):
+def _visualize_bipartite_graph(H, V, B, vertex_cover, independent_set):
     # Use bipartite_layout for clear separation
     pos = {}
     pos.update((node, (1, index)) for index, node in enumerate(H))  # Left column
@@ -179,4 +189,11 @@ def visualize_bipartite_graph(H, V, B, vertex_cover, independent_set):
     plt.title("Bipartite Graph\nRed: Vertex Cover, Green: Independent Set")
     plt.axis('off')
     plt.show()
+
+
+def _segments_share_endpoint(seg1, seg2):
+    """Returns True if seg1 and seg2 share an endpoint"""
+    return seg1[0] in seg2 or seg1[1] in seg2
+
+
 
