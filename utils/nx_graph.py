@@ -3,9 +3,10 @@ import math
 import matplotlib.animation
 import matplotlib.pyplot as plt
 import networkx as nx
+import numpy as np
 
 from utils.disjoint_set import DisjointSet
-from utils.robot import Robot
+from utils.robot import V_ROT, Robot
 
 
 def nx_graph_write(G: nx.Graph, filepath):
@@ -236,8 +237,17 @@ def simulation(
         lambda event: [exit(0) if event.key == 'escape' else None])
 
     robots = [Robot(P[i], planner.H) for i in range(k)]
-    t_finish = [robots[i].T[-1] for i in range(k)]
+    t_finish = []
+    paths_turns = calc_num_turns(P, R)
+    for i, turns in enumerate(paths_turns):
+        degrees = 0
+        for key, val in turns.items():
+            degrees += key*val
+        time = robots[i].T[-1] + degrees / V_ROT
+        t_finish.append(time)
     t_max = max(t_finish)
+    print(f'Final time: {t_max}')
+
 
     if not is_write and not is_show:
         print(f'Final Max Weights: {max(W)}')
@@ -363,3 +373,38 @@ def show_result(G: nx.Graph, traj_vec, k):
         ax.plot(xs, ys, '-o'+c, mec='k', mfc='w', alpha=0.5, ms=5, lw=10)
 
     plt.show()
+
+
+
+def calc_num_turns(paths, R):
+    paths_turns = [None]*len(R)
+    for i, path in enumerate(paths):
+        turn_path = []
+        turn_path = [(R[i][0],R[i][1] - 1)]
+        for node in path:
+            turn_path.append(node)
+
+        turn_path.append((R[i][0],R[i][1] - 1))
+        
+        path_turns = {
+            0: 0,
+            45: 0,
+            90: 0,
+            135: 0,
+            180: 0
+        }
+        
+        for index in range(0, len(turn_path)-2):
+            a = np.array(turn_path[index])
+            b = np.array(turn_path[index + 1])
+            c = np.array(turn_path[index + 2])
+            
+            ba = a - b
+            bc = c - b
+            cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+            angle = np.pi - np.arccos(cosine_angle)
+            degrees = round(np.degrees(angle))
+            path_turns[degrees] += 1
+        
+        paths_turns[i] = path_turns
+    return paths_turns

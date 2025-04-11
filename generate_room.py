@@ -49,4 +49,4 @@ def is_illegal(choice, room: nx.Graph):
     return not nx.is_connected(temp)
 
 
-generate_room(5, 5, 0.3)
+generate_room(20, 20, 0.2)

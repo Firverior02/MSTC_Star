@@ -1,8 +1,10 @@
-import math
 import bisect
+import math
+
 import networkx as nx
 
-V0 = 1.0  # m/s
+V_MOV = 0.5  # m/s
+V_ROT = 140  # deg/s
 SQRT_2 = math.sqrt(2)
 PI = math.pi
 YAW = {(1, 0): ('E', 0), (1, 1): ('NE', PI/4), (0, 1): ('N', PI/2),
@@ -50,7 +52,7 @@ class Robot:
         cur = self.state
         for i, nxt in enumerate(self.S[1:]):
             dist = 1.0 if cur[0] == nxt[0] or cur[1] == nxt[1] else SQRT_2
-            V[i] = V0
+            V[i] = V_MOV
             T[i+1] = T[i] + dist / V[i]
             cur = nxt
 
