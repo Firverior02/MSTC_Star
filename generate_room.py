@@ -8,6 +8,10 @@ from utils.nx_graph import nx_graph_write
 
 # Constants
 ROOMS_DIR = 'data/rooms/'
+NUM_ROOMS = 100
+ROOM_DIMENSIONS = [10, 30, 80]
+DENSITIES = [10, 20, 80, 90]
+
 
 def generate_room(x: int, y: int, density: float):
     """Generate a room of dimensions x * y with density 
@@ -83,5 +87,13 @@ def generate_room(x: int, y: int, density: float):
         # If graph is no longer connected, it is an invalid placement
         return not nx.is_connected(temp)
 
-
-#generate_room(20, 20, 0.2)
+def generate_testing_environments():
+    """Generates a set of environments to test on"""
+    
+    # Generate rooms with different dimensions
+    for dimension in ROOM_DIMENSIONS:
+        # Generate rooms with different densities
+        for density in DENSITIES:
+            # Generate a set of rooms with these properties
+            for _ in range(NUM_ROOMS):
+                generate_room(dimension, dimension, density)
