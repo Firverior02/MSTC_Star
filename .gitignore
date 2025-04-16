@@ -3,5 +3,4 @@ __pycache__*
 .mypy_cache
 results
 data/models
-data/rooms
 results.csv
