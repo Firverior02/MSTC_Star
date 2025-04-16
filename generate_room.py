@@ -3,14 +3,13 @@ import os
 import random
 
 import networkx as nx
-
 from utils.nx_graph import nx_graph_write
 
 # Constants
 ROOMS_DIR = 'data/rooms/'
 NUM_ROOMS = 100
-ROOM_DIMENSIONS = [10, 30, 80]
-DENSITIES = [10, 20, 80, 90]
+ROOM_DIMENSIONS = [10, 30, 60]
+DENSITIES = [5, 15, 40, 50]
 
 
 def generate_room(x: int, y: int, density: float):
@@ -56,44 +55,51 @@ def generate_room(x: int, y: int, density: float):
         choice = random.choice(nodes)
 
         # Continue trying to place while invalid placement (graph is no longer connected)
+        not_tried = nodes.copy()
+        not_tried.remove(choice)
         while _is_illegal(choice, room):
-            nodes.remove(choice)
-            if len(nodes) == 0:
-                raise IndexError("No more nodes to assign obstacle to")
-            choice = random.choice(nodes)
+            choice = random.choice(not_tried)
+            not_tried.remove(choice)
         
         room.remove_node(choice)
         nodes.remove(choice)
+        if len(nodes) == 0:
+                raise IndexError("No more nodes to assign obstacle to")
     
     # Write room to file
     nx_graph_write(room, dir_path + f_path)
 
 
-    def _is_illegal(choice, room: nx.Graph):
-        """Checks if an obstacle placement is invalid
+def _is_illegal(choice, room: nx.Graph):
+    """Checks if an obstacle placement is invalid
 
-        Args:
-            choice (node): The node that should become an obstacle
-            room (nx.Graph): The entire room graph
+    Args:
+        choice (node): The node that should become an obstacle
+        room (nx.Graph): The entire room graph
 
-        Returns:
-            bool: If the placement is invalid
-        """
-        
-        # Creates a copy of the room and removed node from it
-        temp = room.copy()
-        temp.remove_node(choice)
-        
-        # If graph is no longer connected, it is an invalid placement
-        return not nx.is_connected(temp)
+    Returns:
+        bool: If the placement is invalid
+    """
+    
+    # Creates a copy of the room and removed node from it
+    temp = room.copy()
+    temp.remove_node(choice)
+    
+    # If graph is no longer connected, it is an invalid placement
+    return not nx.is_connected(temp)
 
 def generate_testing_environments():
     """Generates a set of environments to test on"""
     
     # Generate rooms with different dimensions
     for dimension in ROOM_DIMENSIONS:
+        print(f"Generating dimenison {dimension}x{dimension}")
         # Generate rooms with different densities
         for density in DENSITIES:
+            print(f"Generating density {density}")
             # Generate a set of rooms with these properties
             for _ in range(NUM_ROOMS):
-                generate_room(dimension, dimension, density)
+                generate_room(dimension, dimension, density/100)
+
+
+generate_testing_environments()

@@ -4,7 +4,6 @@ import matplotlib.animation
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-
 from utils.disjoint_set import DisjointSet
 from utils.robot import V_ROT, Robot
 
@@ -224,6 +223,7 @@ def simulation(
 
     k, R = planner.k, planner.R
     color = ['r', 'm', 'b', 'k', 'c', 'g']
+    
     fig = plt.figure()
     fig.set_size_inches(8, 8)
     fig.tight_layout()
@@ -246,12 +246,11 @@ def simulation(
         time = robots[i].T[-1] + degrees / V_ROT
         t_finish.append(time)
     t_max = max(t_finish)
-    print(f'Final time: {t_max}')
 
-
-    if not is_write and not is_show:
-        print(f'Final Max Weights: {max(W)}')
-        return
+    if (not is_write) and (not is_show):
+        #print(f'Final Max Weights: {max(W)}')
+        plt.close('all')
+        return t_max
 
     lines, markers, texts = [None]*k, [None]*k, [None]*(k+1)
     xs_vec, ys_vec = [None]*k, [None]*k
@@ -336,6 +335,10 @@ def simulation(
 
     if is_show:
         plt.show()
+    
+    plt.close('all')
+    
+    return t_max
 
 
 def calc_overlapping_ratio(traj_vec, rho):

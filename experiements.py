@@ -1,94 +1,152 @@
-import networkx as nx
+import csv
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from functools import partial
 
+import matplotlib.animation
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 from mcpp.mfc_planner import test_MFC
 from mcpp.mstc_planner import test_MSTC, test_MSTC_BT_OPT
-from mcpp.mstc_star_planner import test_MSTC_STAR, test_MSTC_STAR_CUT_OPT
-from utils.nx_graph import nx_graph_read
+from mcpp.mstc_star_planner import (MSTCStarPlanner, test_MSTC_STAR,
+                                    test_MSTC_STAR_CUT_OPT)
+from mcpp.tmstc_star_planner import TMSTCStarPlanner
+from utils.nx_graph import (calc_num_turns, calc_overlapping_ratio, graph_plot,
+                            mst, nx_graph_read, show_result, simulation)
+
+# Constants
+ROOMS_DIR = 'data/rooms/'
+NUM_ROOMS = 100
+ROOM_DIMENSIONS = [10, 30, 60]
+DENSITIES = [5, 15, 40, 50]
+RESULTS_FNAME = 'results'
+
+def save_results(dimension, density, algorithm, num_robots, time, overlap):
+    data = [dimension, density, algorithm, num_robots, str(time).replace(".", ","), str(overlap).replace(".", ",")]
+
+    with open(f'{RESULTS_FNAME}.csv', mode='a', newline='\n') as file:
+        writer = csv.writer(file, delimiter=";")
+        writer.writerow(data)
+    
+
+def test(name, G: nx.Graph, R, obs_graph, debug=False):
+
+    if (name == 'MSTC-Star'):
+        planner = MSTCStarPlanner(G, len(R), R, float('inf'), True)
+    elif (name == 'TMSTC-Star'):
+        planner = TMSTCStarPlanner(G, len(R), R, float('inf'), True)
+    else:
+        print(f'Invalid algorithm name: {name}\nExiting...')
+        exit(0)
+    
+    plans = planner.allocate()
+    paths, weights = planner.simulate(plans, False)
+
+    if debug:
+        print('Ska inte vara här!!')
+        show_result(planner.get_tree(), paths, len(R))
+    
+    # Get final time from simulation
+    time = simulation(planner, paths, weights, name, 0.03, obs_graph, False, debug)
+    overlapping = calc_overlapping_ratio(paths, planner.rho)
+    
+    if debug:
+        print(f'{name} total time: {time}s')
+        print(f'{name} overlapping ratio: {overlapping}')
+
+        paths_turns = calc_num_turns(paths, R)
+        total_turns = 0
+        total_degrees = 0
+        for path_turns in paths_turns:
+            for k, v in path_turns.items():
+                total_degrees += k*v
+                if not k == 0:
+                    total_turns += v
+
+        print(f'{name} number of turns: {total_turns}')
+        print(f'{name} number of degrees for turns: {total_degrees}\n')
+
+    return time, overlapping
 
 
-def test_grid_5x10_unweighted(cap=float('inf'), is_write=False, is_show=False):
-    prefix = 'GRID_5x10_UNWEIGHTED'
-    # R = [(2, 0), (3, 0), (4, 0)]
-    R = [(1, 0), (2, 0), (3, 0), (4, 0)]
-    # R = [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]
-    G = nx_graph_read(f'data/nx_graph/{prefix}.graph')
-    obs_graph = nx.grid_2d_graph(5, 10)
+def test_room(dimension, density, idx, robot_counts, debug=False):
+    dimension_name = f'{dimension}x{dimension}'
+    
+    # Read G
+    G, _, _ = nx_graph_read(f'data/rooms/{density}_ROOMS/{dimension_name}/ROOM_{dimension_name}_{density}_{idx}.graph')
+    obs_graph = nx.grid_2d_graph(dimension, dimension)
     for node in G.nodes():
         obs_graph.remove_node(node)
 
-    test_MSTC(prefix, R, cap, obs_graph, is_write, is_show)
-    test_MSTC_BT_OPT(prefix, R, cap, is_write, is_show)
-    # test_MFC(prefix, R, cap, 1.0, is_write, is_show)
-    test_MSTC_STAR(prefix, R, cap, is_write, is_show)
-    test_MSTC_STAR_CUT_OPT(prefix, R, cap, is_write, is_show)
+    data = [] 
+    for num_robots in robot_counts:
+        # Select docking stations for robots
+        R = []
+        for node in G.nodes():
+            R.append(node)
+            if len(R) >= num_robots: break
+
+        # Run MSTC-Star
+        mstc_time, mstc_overlapping = test('MSTC-Star', G, R, obs_graph, debug)
+
+        # Run TMSTC-Star
+        tmstc_time, tmstc_overlapping = test('TMSTC-Star', G, R, obs_graph, debug)
+        
+        # # Save data
+        # save_results(dimension, density, "MSTC*", num_robots, mstc_time, mstc_overlapping)
+        # save_results(dimension, density, "TMSTC*", num_robots, tmstc_time, tmstc_overlapping)
+        data.append([dimension, density, "MSTC*", num_robots, str(mstc_time).replace(".", ","), str(mstc_overlapping).replace(".", ",")])
+        data.append([dimension, density, "TMSTC*", num_robots, str(tmstc_time).replace(".", ","), str(tmstc_overlapping).replace(".", ",")])
+        
+    return data
+
+        
+
+def test_environments(dimensions, densities, num_rooms, robot_counts, debug=False):
+    """Generates a set of environments to test on"""
+
+    
+    tasks = []
+    for dimension in dimensions:
+        for density in densities:
+            for idx in range(num_rooms):
+                tasks.append((dimension, density, idx + 1, robot_counts, debug))
+
+    with ProcessPoolExecutor() as executor:
+        # Submit all tasks
+        futures = [executor.submit(test_room, *task) for task in tasks]
+
+        with open(f'{RESULTS_FNAME}.csv', mode='w', newline='\n') as file:
+            writer = csv.writer(file, delimiter=";")
+            writer.writerow(["Dimension", "Density", "Algorithm", "Num_Robots", "Time", "Overlapping"])
+            
+            for i, future in enumerate(as_completed(futures), 1):
+                result = future.result()
+                if result:
+                    writer.writerows(result)
+                if i % 10 == 0:
+                    print(f"\tCompleted {i}/{len(futures)} simulations")
 
 
-def test_grid_10x10_weighted(cap=float('inf'), is_write=False, is_show=False):
-    prefix = 'GRID_10x10_WEIGHTED'
-    # R = [(5, 5), (5, 6), (6, 6)]
-    R = [(5, 5), (5, 6), (6, 5), (6, 6)]
-    # R = [(4, 5), (4, 6), (5, 5), (6, 5), (6, 6), (4, 7), (5, 7), (6, 7)]
-
-    test_MSTC(prefix, R, cap, is_write, is_show)
-    test_MSTC_BT_OPT(prefix, R, cap, is_write, is_show)
-    test_MFC(prefix, R, cap, 1.0, is_write, is_show)
-    test_MSTC_STAR(prefix, R, cap, is_write, is_show)
-    test_MSTC_STAR_CUT_OPT(prefix, R, cap, is_write, is_show)
 
 
-def test_grid_20x20_unweighted_free(cap=float('inf'), is_write=False, is_show=False):
-    prefix = 'GRID_20x20_UNWEIGHTED_FREE'
-    # R = [(5, 5), (6, 6)]
-    # R = [(5, 5), (5, 6), (6, 5), (6, 6)]
-    # R = [(4, 5), (4, 6), (5, 5), (5, 6), (6, 5), (6, 6)]
-    R = [(4, 5), (4, 6), (5, 5), (6, 5), (6, 6), (4, 7), (5, 7), (6, 7)]
+    # # Initialize CSV file
+    # with open(f'{RESULTS_FNAME}.csv', mode='w', newline='\n') as file:
+    #     writer = csv.writer(file, delimiter=";")
+    #     writer.writerow(["Dimension", "Density", "Algorithm", "Num_Robots", "Time", "Overlapping"]) 
 
-    test_MSTC(prefix, R, cap, is_write, is_show)
-    test_MSTC_BT_OPT(prefix, R, cap, is_write, is_show)
-    test_MFC(prefix, R, cap, 1.0, is_write, is_show)
-    test_MSTC_STAR(prefix, R, cap, is_write, is_show)
-    test_MSTC_STAR_CUT_OPT(prefix, R, cap, is_write, is_show)
-
-
-def test_terrain_1(cap=float('inf'), is_write=False, is_show=False):
-    prefix = 'TERRAIN#1'
-    # R = [(16, 16), (16, 17), (17, 16), (17, 17)]  # k = 4
-    # R = [(16, 16), (16, 17), (16, 18), (17, 18),  # k = 8
-    #      (18, 18), (18, 17), (18, 16), (17, 16)]
-    R = [(16, 16), (16, 17), (16, 18), (17, 18),  # k = 12
-         (18, 18), (18, 17), (18, 16), (17, 16),
-         (12, 16), (12, 17), (12, 18), (13, 18)]
-    # R = [(16, 16), (16, 17), (16, 18), (17, 18),  # k = 16
-    #      (18, 18), (18, 17), (18, 16), (17, 16),
-    #      (12, 16), (12, 17), (12, 18), (13, 18),
-    #      (14, 18), (14, 17), (14, 16), (13, 16)]
-
-    # test_MSTC(prefix, R, cap, is_write, is_show)
-    # test_MSTC_BT_OPT(prefix, R, cap, is_write, is_show)
-    # test_MFC(prefix, R, cap, 10.0, is_write, is_show)
-    test_MSTC_STAR(prefix, R, cap, is_write, is_show)
-    test_MSTC_STAR_CUT_OPT(prefix, R, cap, is_write, is_show)
-
-
-def test_terrain_3(cap=float('inf'), is_write=False, is_show=False):
-    prefix = 'TERRAIN#3'
-    R = [(88, 40), (88, 39), (89, 39), (89, 40)]  # k = 4
-    # R = [(88, 40), (88, 39), (88, 38), (87, 38),  # k = 8
-    #      (86, 38), (86, 39), (86, 40), (87, 40)]
-    R = [(88, 40), (88, 39), (88, 38), (87, 38),  # k = 12
-         (86, 38), (86, 39), (86, 40), (87, 40),
-         (84, 40), (84, 39), (84, 38), (83, 38)]
-    # R = [(88, 40), (88, 39), (88, 38), (87, 38),  # k = 16
-    #      (86, 38), (86, 39), (86, 40), (87, 40),
-    #      (84, 40), (84, 39), (84, 38), (83, 38),
-    #      (82, 38), (82, 39), (82, 40), (83, 40)]
-
-    test_MSTC(prefix, R, cap, is_write, is_show)
-    test_MSTC_BT_OPT(prefix, R, cap, is_write, is_show)
-    test_MFC(prefix, R, cap, 10.0, is_write, is_show)
-    test_MSTC_STAR(prefix, R, cap, is_write, is_show)
-    test_MSTC_STAR_CUT_OPT(prefix, R, cap, is_write, is_show)
-
-
+    # # Generate rooms with different dimensions
+    # for dimension in dimensions:
+    #     print(f"Simulating dimenison {dimension}x{dimension}")
+    #     # Generate rooms with different densities
+    #     for density in densities:
+    #         print(f"\tSimulating density {density}%")
+    #         # Generate a set of rooms with these properties
+    #         for idx in range(num_rooms):
+    #             if idx % 20 == 0:
+    #                 print(f'\t\tSimulating index {idx}')
+    #             test_room(dimension, density, idx+1, robot_counts, dimension==30)
+                
+                
 if __name__ == '__main__':
-    test_grid_5x10_unweighted()
+    test_environments(ROOM_DIMENSIONS, DENSITIES, 100, [2,4], debug=False)

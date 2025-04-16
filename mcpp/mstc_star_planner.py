@@ -1,10 +1,10 @@
 import time
-import networkx as nx
 
+import networkx as nx
 from mcpp.stc_planner import STCPlanner
-from utils.nx_graph import nx_graph_read, mst, navigate
-from utils.nx_graph import graph_plot, trajectory_plot, calc_overlapping_ratio
-from utils.nx_graph import animation, record, simulation
+from utils.nx_graph import (animation, calc_overlapping_ratio, graph_plot, mst,
+                            navigate, nx_graph_read, record, simulation,
+                            trajectory_plot)
 
 
 class MSTCStarPlanner(STCPlanner):
@@ -20,7 +20,7 @@ class MSTCStarPlanner(STCPlanner):
 
         self.cut_off_opt = cut_off_opt
 
-    def allocate(self, alloc_filename=None):
+    def allocate(self, alloc_filename=None, debug=False):
         """ recursively split to keep balanced,
             ref: MSP Algorithm: Multi-Robot Patrolling based on Territory
                  Allocation using Balanced Graph Partitioning
@@ -34,23 +34,23 @@ class MSTCStarPlanner(STCPlanner):
             start = end
 
         if self.cut_off_opt:
-            _, weights = self.simulate(plans)
-            self.__optimal_cut_opt(weights, plans, debug=True)
+            _, weights = self.simulate(plans, debug)
+            self.__optimal_cut_opt(weights, plans, debug=False)
 
         self.__write_alloc_file(plans, alloc_filename)
 
         return plans
 
-    def simulate(self, plans, is_print=True):
+    def simulate(self, plans, debug=False):
         paths, weights = [[] for _ in range(self.k)], [0] * self.k
         for idx, val in enumerate(plans.items()):
             depot, serv_pts = val
             path, weight = self.__sim(depot, serv_pts)
             paths[idx], weights[idx] = path, weight
 
-            if is_print:
+            if debug:
                 print(f'#{idx} Total Weights: {weights[idx]}')
-        if is_print:
+        if debug:
             print(f'---\nFinal Max Weights: {max(weights)}')
 
         return paths, weights
@@ -93,7 +93,8 @@ class MSTCStarPlanner(STCPlanner):
         while cur_iter < num_of_iters:
             r_min = min(list(range(self.k)), key=lambda x: weights[x])
             r_max = max(list(range(self.k)), key=lambda x: weights[x])
-            print(f'iter #{cur_iter}: rmin={r_min}, rmax={r_max}, max weight={opt: .3f}', end=' ')
+            if debug:
+                print(f'iter #{cur_iter}: rmin={r_min}, rmax={r_max}, max weight={opt: .3f}', end=' ')
             # clockwise cutoff opt
             clw = self.__get_intermediate_r_index(r_min, r_max, -1)
             # counter-clockwise cutoff opt
@@ -102,12 +103,14 @@ class MSTCStarPlanner(STCPlanner):
             r_index = clw if len(clw) < len(ccw) else ccw
             self.__find_optimial_cut(r_index, weights, plans, debug)
 
-            for i in sorted(list(range(self.k)), key=lambda x: weights[x]):
-                print(f', {i}: {weights[i]: .3f}', end=' ')
-            print(',')
+            if debug:
+                for i in sorted(list(range(self.k)), key=lambda x: weights[x]):
+                    print(f', {i}: {weights[i]: .3f}', end=' ')
+                print(',')
 
             if max(weights) >= opt:
-                print('MSTC-Star Cutoff OPT Finished')
+                if debug:
+                    print('MSTC-Star Cutoff OPT Finished')
                 break
             else:
                 opt = max(weights)
@@ -141,7 +144,7 @@ class MSTCStarPlanner(STCPlanner):
 
         return path, self.__get_travel_weights__(path)
 
-    def __find_optimial_cut(self, r_index, weights, plans, debug=True):
+    def __find_optimial_cut(self, r_index, weights, plans, debug=False):
         """ find optimal-cut point of U{P_cutoff_index} using binary search """
 
         plan, N = [], {}

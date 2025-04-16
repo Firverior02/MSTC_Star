@@ -33,7 +33,15 @@ class TMSTCStarPlanner(MSTCStarPlanner):
 
 
 
-def tmst(G: nx.Graph):
+def tmst(G: nx.Graph) -> nx.Graph:
+    """Computes a turn minimizing spanning tree of a graph
+
+    Args:
+        G (nx.Graph): The graph of which to compute the spanning tree
+
+    Returns:
+        nx.Graph: A turn minimizing spanning tree
+    """
     # Create bipartite graph I
     I, H, _, flow_dict = generate_bipartite_graph(G)
     
@@ -56,6 +64,14 @@ def tmst(G: nx.Graph):
 
 
 def generate_bipartite_graph(G: nx.Graph):
+    """Create a bipartite graph and tags for nodes
+
+    Args:
+        G (nx.Graph): The graph to generate the bipartite graph from
+
+    Returns:
+        _type_: _description_
+    """
     I = nx.Graph()
     H = set()
     V = set()
