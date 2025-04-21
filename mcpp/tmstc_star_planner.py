@@ -3,7 +3,6 @@ import time
 
 import matplotlib.pyplot as plt
 import networkx as nx
-
 from mcpp.mstc_star_planner import MSTCStarPlanner
 from utils.nx_graph import graph_plot, navigate
 
@@ -17,61 +16,33 @@ class TMSTCStarPlanner(MSTCStarPlanner):
 
         # Generate coverage graph
         self.H = self.generate_decomposed_graph(self.G, self.R)
-        
-        # 
-        self.rho = self.generate_cover_trajectory(R[0], tmst(G))
 
-        # Find cut off points
+        # Cache tree to avoid recomputation
+        self.tree = tmst(G)
+
+        # Generate trajectory using cached tree
+        self.rho = self.generate_cover_trajectory(R[0], self.tree)
+
         self.cut_off_opt = cut_off_opt
-        
+
     def get_tree(self):
-        return tmst(self.G)
-
-
-
-
-
+        return self.tree
 
 
 def tmst(G: nx.Graph) -> nx.Graph:
-    """Computes a turn minimizing spanning tree of a graph
-
-    Args:
-        G (nx.Graph): The graph of which to compute the spanning tree
-
-    Returns:
-        nx.Graph: A turn minimizing spanning tree
-    """
-    # Create bipartite graph I
     I, H, _, flow_dict = generate_bipartite_graph(G)
-    
-    # Compute maximum matching
+
     matching = nx.algorithms.bipartite.maximum_matching(I, top_nodes=H)
 
-    # Compute minimum vertex cover using matching (König's theorem)
     minimum_vertex_cover = nx.algorithms.bipartite.to_vertex_cover(I, matching, top_nodes=H)
-
-    # Compute maximum independent set as the complement
     max_independent_set = set(I.nodes()) - set(minimum_vertex_cover)
 
-    # Visualization
-    # _visualize_bipartite_graph(H, V, F, minimum_vertex_cover, max_independent_set)
-    
-    # Merge bricks
     T = merge_bricks(G, max_independent_set, flow_dict)
-    
+
     return T
 
 
 def generate_bipartite_graph(G: nx.Graph):
-    """Create a bipartite graph and tags for nodes
-
-    Args:
-        G (nx.Graph): The graph to generate the bipartite graph from
-
-    Returns:
-        _type_: _description_
-    """
     I = nx.Graph()
     H = set()
     V = set()
@@ -80,79 +51,70 @@ def generate_bipartite_graph(G: nx.Graph):
     h_index = 1
     v_index = 1
 
-    # Separate H and V segments
     for u, v in G.edges:
-        if u[0] == v[0]:  # Horizontal segment
+        if u[0] == v[0]:  # Horizontal
             node_name = f'h{h_index}'
             H.add(node_name)
             flow_dict[node_name] = (u, v)
             h_index += 1
-        else:  # Vertical segment
+        else:  # Vertical
             node_name = f'v{v_index}'
             V.add(node_name)
             flow_dict[node_name] = (u, v)
             v_index += 1
 
-    # Add edges between H and V if they share an endpoint
     for node in H.union(V):
         I.add_node(node)
+
     for h in H:
         for v in V:
             if _segments_share_endpoint(flow_dict[h], flow_dict[v]):
                 I.add_edge(h, v)
-    
+
     return I, H, V, flow_dict
 
 
 def merge_bricks(G: nx.Graph, max_independent_set, flow_dict):
-    # Create bricks
     T = nx.Graph()
     for node in G.nodes:
-       T.add_node(node)
+        T.add_node(node)
     for node in max_independent_set:
-       T.add_edge(flow_dict[node][0], flow_dict[node][1], weight=G.edges[flow_dict[node]]['weight'])      
-    
-    # Number of bricks     
+        u, v = flow_dict[node]
+        T.add_edge(u, v, weight=G.edges[u, v]['weight'])
+
     m = nx.number_connected_components(T)
 
-    # All possible connecting edges
+    f_values = {node: _f(node, T) for node in T.nodes()}
     candidate_edges = set(G.edges) - set(T.edges)
 
-    # Connect bricks
     while m > 1:
-        # Update costs
-        costs = _calc_costs(candidate_edges, T)
+        costs = _calc_costs(candidate_edges, T, f_values)
 
-        # Add optimal edge
         for edge in sorted(costs, key=costs.get):
-            if not nx.has_path(T, edge[0], edge[1]):
-                T.add_edge(edge[0], edge[1], weight=G.edges[edge]['weight'])
+            u, v = edge
+            if not nx.has_path(T, u, v):
+                T.add_edge(u, v, weight=G.edges[u, v]['weight'])
+                f_values[u] = _f(u, T)
+                f_values[v] = _f(v, T)
                 candidate_edges.remove(edge)
                 break
             else:
-                candidate_edges.remove(edge)      
+                candidate_edges.remove(edge)
         m -= 1
-    
+
     return T
 
 
-
-
-
-def _calc_costs(candidate_edges, T: nx.Graph):
-    """Calculate cost of adding edge between bricks """
+def _calc_costs(candidate_edges, T: nx.Graph, f_values):
     costs = {}
-    for edge in candidate_edges:
-        f_i = _f(edge[0], T)
-        f_j = _f(edge[1], T)
-
-        temp = T.copy()
-        temp.add_edge(edge[0], edge[1])
-        
-        fp_i = _f(edge[0], temp)
-        fp_j = _f(edge[1], temp)
-
-        costs[edge] = fp_i + fp_j - f_i - f_j
+    for u, v in candidate_edges:
+        f_i = f_values[u]
+        f_j = f_values[v]
+        T.add_edge(u, v)
+        fp_i = _f(u, T)
+        fp_j = _f(v, T)
+        T.remove_edge(u, v)
+        costs[(u, v)] = fp_i + fp_j - f_i - f_j
     return costs
 
 
