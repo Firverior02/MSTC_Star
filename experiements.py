@@ -1,4 +1,5 @@
 import csv
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from functools import partial
 
@@ -19,6 +20,7 @@ ROOMS_DIR = 'data/rooms/'
 NUM_ROOMS = 100
 ROOM_DIMENSIONS = [10, 30, 60]
 DENSITIES = [5, 15, 40, 50]
+ROBOT_COUNTS = [2, 4]
 RESULTS_FNAME = 'results'
 
 def save_results(dimension, density, algorithm, num_robots, time, overlap):
@@ -43,7 +45,6 @@ def test(name, G: nx.Graph, R, obs_graph, debug=False):
     paths, weights = planner.simulate(plans, False)
 
     if debug:
-        print('Ska inte vara här!!')
         show_result(planner.get_tree(), paths, len(R))
     
     # Get final time from simulation
@@ -93,8 +94,6 @@ def test_room(dimension, density, idx, robot_counts, debug=False):
         tmstc_time, tmstc_overlapping = test('TMSTC-Star', G, R, obs_graph, debug)
         
         # # Save data
-        # save_results(dimension, density, "MSTC*", num_robots, mstc_time, mstc_overlapping)
-        # save_results(dimension, density, "TMSTC*", num_robots, tmstc_time, tmstc_overlapping)
         data.append([dimension, density, "MSTC*", num_robots, str(mstc_time).replace(".", ","), str(mstc_overlapping).replace(".", ",")])
         data.append([dimension, density, "TMSTC*", num_robots, str(tmstc_time).replace(".", ","), str(tmstc_overlapping).replace(".", ",")])
         
@@ -105,14 +104,14 @@ def test_room(dimension, density, idx, robot_counts, debug=False):
 def test_environments(dimensions, densities, num_rooms, robot_counts, debug=False):
     """Generates a set of environments to test on"""
 
-    
+    print("Creating tasks")
     tasks = []
     for dimension in dimensions:
         for density in densities:
             for idx in range(num_rooms):
                 tasks.append((dimension, density, idx + 1, robot_counts, debug))
 
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
         # Submit all tasks
         futures = [executor.submit(test_room, *task) for task in tasks]
 
@@ -124,29 +123,8 @@ def test_environments(dimensions, densities, num_rooms, robot_counts, debug=Fals
                 result = future.result()
                 if result:
                     writer.writerows(result)
-                if i % 10 == 0:
-                    print(f"\tCompleted {i}/{len(futures)} simulations")
+                print(f"Completed {i}/{len(futures)} simulations")
 
-
-
-
-    # # Initialize CSV file
-    # with open(f'{RESULTS_FNAME}.csv', mode='w', newline='\n') as file:
-    #     writer = csv.writer(file, delimiter=";")
-    #     writer.writerow(["Dimension", "Density", "Algorithm", "Num_Robots", "Time", "Overlapping"]) 
-
-    # # Generate rooms with different dimensions
-    # for dimension in dimensions:
-    #     print(f"Simulating dimenison {dimension}x{dimension}")
-    #     # Generate rooms with different densities
-    #     for density in densities:
-    #         print(f"\tSimulating density {density}%")
-    #         # Generate a set of rooms with these properties
-    #         for idx in range(num_rooms):
-    #             if idx % 20 == 0:
-    #                 print(f'\t\tSimulating index {idx}')
-    #             test_room(dimension, density, idx+1, robot_counts, dimension==30)
-                
                 
 if __name__ == '__main__':
-    test_environments(ROOM_DIMENSIONS, DENSITIES, 100, [2,4], debug=False)
+    test_environments(ROOM_DIMENSIONS, DENSITIES, 100, ROBOT_COUNTS, debug=False)
