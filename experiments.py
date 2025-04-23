@@ -7,6 +7,7 @@ import matplotlib.animation
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+
 from mcpp.mfc_planner import test_MFC
 from mcpp.mstc_planner import test_MSTC, test_MSTC_BT_OPT
 from mcpp.mstc_star_planner import (MSTCStarPlanner, test_MSTC_STAR,
@@ -26,7 +27,7 @@ RESULTS_FNAME = 'results'
 def save_results(dimension, density, algorithm, num_robots, time, overlap):
     data = [dimension, density, algorithm, num_robots, str(time).replace(".", ","), str(overlap).replace(".", ",")]
 
-    with open(f'{RESULTS_FNAME}.csv', mode='a', newline='\n') as file:
+    with open(f'results/{RESULTS_FNAME}.csv', mode='a', newline='\n') as file:
         writer = csv.writer(file, delimiter=";")
         writer.writerow(data)
     
@@ -127,4 +128,4 @@ def test_environments(dimensions, densities, num_rooms, robot_counts, debug=Fals
 
                 
 if __name__ == '__main__':
-    test_environments(ROOM_DIMENSIONS, DENSITIES, 100, ROBOT_COUNTS, debug=False)
+    test_environments([10], [15], 2, [4], debug=True)

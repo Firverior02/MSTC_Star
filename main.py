@@ -56,7 +56,7 @@ def test(name, G: nx.Graph, R, obs_graph):
 
 
 
-density = 50
+density = 15
 dimension = 30
 idx = 1
 dimension_name = f"{dimension}x{dimension}"
@@ -71,16 +71,18 @@ tmstc_star_report = 'tmstc_report4x3'
 #R = [(0,0), (1,0), (2,0), (3,0)]
 R = [(0,0), (0,1)]
 #R = [(0, 1), (0, 2), (0, 3)]
-G, x, y = nx_graph_read(f'data/rooms/{density}_ROOMS/{dimension_name}/ROOM_{dimension_name}_{density}_{idx}.graph')
+#G, x, y = nx_graph_read(f'data/rooms/{density}_ROOMS/{dimension_name}/ROOM_{dimension_name}_{density}_{idx}.graph')
+G, x, y = nx_graph_read(f'data/nx_graph/{prefix}.graph')
+
 obs_graph = nx.grid_2d_graph(int (x), int (y))
 for node in G.nodes():
     obs_graph.remove_node(node)
 
 # Run MSTC-Star
-#test('MSTC-Star', G, R, obs_graph)
+test('MSTC-Star', G, R, obs_graph)
 
 # Run TMSTC-Star
-#test('TMSTC-Star', G, R, obs_graph)
+test('TMSTC-Star', G, R, obs_graph)
 
 
 def show(M: nx.Graph, OG: nx.Graph):
@@ -110,4 +112,4 @@ def show(M: nx.Graph, OG: nx.Graph):
     plt.show()
 
 
-show(G, obs_graph)
+#show(G, obs_graph)
