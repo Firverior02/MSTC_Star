@@ -1,17 +1,33 @@
-import time
+import csv
+import os
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
-import matplotlib.animation
-import matplotlib.pyplot as plt
 import networkx as nx
-import numpy as np
+
 from mcpp.mstc_star_planner import MSTCStarPlanner
 from mcpp.tmstc_star_planner import TMSTCStarPlanner
-from utils.nx_graph import (calc_num_turns, calc_overlapping_ratio, graph_plot,
-                            mst, nx_graph_read, show_result, simulation)
+from utils.nx_graph import (calc_num_turns, calc_overlapping_ratio,
+                            nx_graph_read, show_result, simulation)
 
+# Constants
+ROOMS_DIR = 'data/rooms/'
+NUM_ROOMS = 100
+ROOM_DIMENSIONS = [10, 30, 60]
+DENSITIES = [5, 15, 40, 50]
+ROBOT_COUNTS = [2, 4]
+RESULTS_FNAME = 'results'
 
-def test(name, G: nx.Graph, R, obs_graph):
-    print(f"\n==== Running {name}====")
+def save_results(dimension, density, algorithm, num_robots, time, overlap):
+    """Save the results to a CSV file."""
+    data = [dimension, density, algorithm, num_robots, str(time).replace(".", ","), str(overlap).replace(".", ",")]
+
+    with open(f'results/{RESULTS_FNAME}.csv', mode='a', newline='\n') as file:
+        writer = csv.writer(file, delimiter=";")
+        writer.writerow(data)
+    
+
+def test(name, G: nx.Graph, R, obs_graph, debug=False):
+    """Test the given algorithm on the provided graph and robots."""
 
     if (name == 'MSTC-Star'):
         planner = MSTCStarPlanner(G, len(R), R, float('inf'), True)
@@ -22,94 +38,91 @@ def test(name, G: nx.Graph, R, obs_graph):
         exit(0)
     
     plans = planner.allocate()
-    paths, weights = planner.simulate(plans)
+    paths, weights = planner.simulate(plans, False)
+
+    if debug:
+        show_result(planner.get_tree(), paths, len(R))
     
-    plans_list = []
-    for plan in plans:
-        plans_list.append(plans[plan])
-
-
-    is_show = True 
-    #simulation(planner, paths, weights, name, 0.03, obs_graph, False, True)
-
-    show_result(planner.get_tree(), paths, len(R))
-    simulation(
-        planner, paths, weights, name, 0.03,
-        obs_graph, False, is_show)
-    print(f'{name} overlapping ratio: {calc_overlapping_ratio(paths, planner.rho)}')
-
-    paths_turns = calc_num_turns(paths, R)
-    total_turns = 0
-    total_degrees = 0
-    for path_turns in paths_turns:
-        print("path_rutns: ", path_turns)
-        for k, v in path_turns.items():
-            total_degrees += k*v
-            if not k == 0:
-                total_turns += v
-    print(f'{name} number of turns: {total_turns}')
-    print(f'{name} number of degrees for turns: {total_degrees}')
+    # Get final time from simulation
+    time = simulation(planner, paths, weights, name, 0.03, obs_graph, False, debug)
+    overlapping = calc_overlapping_ratio(paths, planner.rho)
     
-    print('\n')
+    if debug:
+        print(f'{name} total time: {time}s')
+        print(f'{name} overlapping ratio: {overlapping}')
+
+        paths_turns = calc_num_turns(paths, R)
+        total_turns = 0
+        total_degrees = 0
+        for path_turns in paths_turns:
+            for k, v in path_turns.items():
+                total_degrees += k*v
+                if not k == 0:
+                    total_turns += v
+
+        print(f'{name} number of turns: {total_turns}')
+        print(f'{name} number of degrees for turns: {total_degrees}\n')
+
+    return time, overlapping
 
 
+def test_room(dimension, density, idx, robot_counts, debug=False):
+    """Test a single room with the given parameters."""
+    
+    dimension_name = f'{dimension}x{dimension}'
+    
+    # Read G
+    G, _, _ = nx_graph_read(f'data/rooms/{density}_ROOMS/{dimension_name}/ROOM_{dimension_name}_{density}_{idx}.graph')
+    obs_graph = nx.grid_2d_graph(dimension, dimension)
+    for node in G.nodes():
+        obs_graph.remove_node(node)
 
+    data = [] 
+    for num_robots in robot_counts:
+        # Select docking stations for robots
+        R = []
+        for node in G.nodes():
+            R.append(node)
+            if len(R) >= num_robots: break
 
+        # Run MSTC-Star
+        mstc_time, mstc_overlapping = test('MSTC-Star', G, R, obs_graph, debug)
 
-density = 15
-dimension = 30
-idx = 1
-dimension_name = f"{dimension}x{dimension}"
+        # Run TMSTC-Star
+        tmstc_time, tmstc_overlapping = test('TMSTC-Star', G, R, obs_graph, debug)
+        
+        # # Save data
+        data.append([dimension, density, "MSTC*", num_robots, str(mstc_time).replace(".", ","), str(mstc_overlapping).replace(".", ",")])
+        data.append([dimension, density, "TMSTC*", num_robots, str(tmstc_time).replace(".", ","), str(tmstc_overlapping).replace(".", ",")])
+        
+    return data
 
-# prefix = '30_ROOMS/5x5/ROOM_5x5_30_1'
-# prefix = '20_ROOMS/20x20/ROOM_20x20_20_1'
-#prefix = 'GRID_20x20_UNWEIGHTED_FREE'
-#prefix = 'GRID_5x5_FREE'
-prefix = 'example1'
-tmstc_star_report = 'tmstc_report4x3'
-#R = [(1, 0), (2, 0), (3, 0), (4, 0)]
-#R = [(0,0), (1,0), (2,0), (3,0)]
-R = [(0,0), (0,1)]
-#R = [(0, 1), (0, 2), (0, 3)]
-#G, x, y = nx_graph_read(f'data/rooms/{density}_ROOMS/{dimension_name}/ROOM_{dimension_name}_{density}_{idx}.graph')
-G, x, y = nx_graph_read(f'data/nx_graph/{prefix}.graph')
+        
 
-obs_graph = nx.grid_2d_graph(int (x), int (y))
-for node in G.nodes():
-    obs_graph.remove_node(node)
+def test_environments(dimensions, densities, num_rooms, robot_counts, debug=False):
+    """Generates a set of environments to test on"""
 
-# Run MSTC-Star
-test('MSTC-Star', G, R, obs_graph)
+    print("Creating tasks")
+    tasks = []
+    for dimension in dimensions:
+        for density in densities:
+            for idx in range(num_rooms):
+                tasks.append((dimension, density, idx + 1, robot_counts, debug))
 
-# Run TMSTC-Star
-test('TMSTC-Star', G, R, obs_graph)
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        # Submit all tasks
+        futures = [executor.submit(test_room, *task) for task in tasks]
 
+        with open(f'{RESULTS_FNAME}.csv', mode='w', newline='\n') as file:
+            writer = csv.writer(file, delimiter=";")
+            writer.writerow(["Dimension", "Density", "Algorithm", "Num_Robots", "Time", "Overlapping"])
+            
+            for i, future in enumerate(as_completed(futures), 1):
+                result = future.result()
+                if result:
+                    writer.writerows(result)
+                print(f"Completed {i}/{len(futures)} simulations")
 
-def show(M: nx.Graph, OG: nx.Graph):
-    fig = plt.figure()
-    fig.set_size_inches(8, 8)
-    fig.tight_layout()
-    ax = plt.axes()
-    # ax.margins(x=0.15, y=0.15)
-    ax.axes.xaxis.set_ticklabels([])
-    ax.axes.yaxis.set_ticklabels([])
-    plt.grid(True)
-    plt.gcf().canvas.mpl_connect(
-        'key_release_event',
-        lambda event: [exit(0) if event.key == 'escape' else None])
-
-    for s, t in M.edges():
-            x1, y1 = s
-            x2, y2 = t
-            ax.plot([x1, x2], [y1, y2], '-ok', mfc='r')
-
-    for n in OG.nodes():
-        ax.plot(n[0], n[1], 'xk', ms=10, mew=3)
-    for s, t in OG.edges():
-        x1, y1 = s
-        x2, y2 = t
-        ax.plot([x1, x2], [y1, y2], '-xk', ms=10, mew=3)
-    plt.show()
-
-
-#show(G, obs_graph)
+                
+if __name__ == '__main__':
+    test_environments([10], [40], 1, [4], debug=True)

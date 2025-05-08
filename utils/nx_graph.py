@@ -4,6 +4,7 @@ import matplotlib.animation
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+
 from utils.disjoint_set import DisjointSet
 from utils.robot import V_ROT, Robot
 
