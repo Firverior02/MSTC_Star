@@ -3,11 +3,11 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import networkx as nx
-
 from mcpp.mstc_star_planner import MSTCStarPlanner
 from mcpp.tmstc_star_planner import TMSTCStarPlanner
 from utils.nx_graph import (calc_num_turns, calc_overlapping_ratio,
                             nx_graph_read, show_result, simulation)
+from utils.robot import V_ROT
 
 # Constants
 ROOMS_DIR = 'data/rooms/'
@@ -38,15 +38,15 @@ def test(name, G: nx.Graph, R, obs_graph, debug=False):
         exit(0)
     
     plans = planner.allocate()
-    paths, weights = planner.simulate(plans, False)
+    paths, weights = planner.simulate(plans, debug)
 
     if debug:
         show_result(planner.get_tree(), paths, len(R))
     
     # Get final time from simulation
-    time = simulation(planner, paths, weights, name, 0.03, obs_graph, False, debug)
+    time = simulation(planner, paths, weights, name, 0.03, obs_graph, False, False)
     overlapping = calc_overlapping_ratio(paths, planner.rho)
-    
+
     if debug:
         print(f'{name} total time: {time}s')
         print(f'{name} overlapping ratio: {overlapping}')
@@ -98,7 +98,6 @@ def test_room(dimension, density, idx, robot_counts, debug=False):
     return data
 
         
-
 def test_environments(dimensions, densities, num_rooms, robot_counts, debug=False):
     """Generates a set of environments to test on"""
 
@@ -125,4 +124,4 @@ def test_environments(dimensions, densities, num_rooms, robot_counts, debug=Fals
 
                 
 if __name__ == '__main__':
-    test_environments([10], [40], 1, [4], debug=True)
+    test_environments(ROOM_DIMENSIONS, DENSITIES, NUM_ROOMS, ROBOT_COUNTS, debug=False)

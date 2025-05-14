@@ -4,7 +4,6 @@ import matplotlib.animation
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-
 from utils.disjoint_set import DisjointSet
 from utils.robot import V_ROT, Robot
 
@@ -220,7 +219,7 @@ def record(G: nx.Graph, R, traj_vec, weights, k, prefix, is_show=False):
 
 
 def simulation(
-        planner, P, W, prefix, dt, OG=nx.Graph(), is_write=False, is_show=False):
+        planner,P, W, prefix, dt, OG=nx.Graph(), is_write=False, is_show=False):
 
     k, R = planner.k, planner.R
     color = ['r', 'm', 'b', 'k', 'c', 'g']
@@ -239,12 +238,14 @@ def simulation(
 
     robots = [Robot(P[i], planner.H) for i in range(k)]
     t_finish = []
-    paths_turns = calc_num_turns(P, R)
-    for i, turns in enumerate(paths_turns):
-        degrees = 0
-        for key, val in turns.items():
-            degrees += key*val
-        time = robots[i].T[-1] + degrees / V_ROT
+    #paths_turns = calc_num_turns(P, R)
+    #for i, turns in enumerate(paths_turns):
+     #   degrees = 0
+      #  for key, val in turns.items():
+       #     degrees += key*val
+    for robot in robots:
+        time = robot.T[-1]
+        #time = robots[i].T[-1] #+ degrees / V_ROT
         t_finish.append(time)
     t_max = max(t_finish)
 

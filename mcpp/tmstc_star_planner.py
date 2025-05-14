@@ -1,4 +1,5 @@
 
+import math
 import time
 
 import matplotlib.pyplot as plt
@@ -13,6 +14,9 @@ class TMSTCStarPlanner(MSTCStarPlanner):
         self.k = k  # Num robots
         self.R = R  # Depot positions for robots
         self.capacity = cap
+        
+        self._travel_cache = {}
+        self._turn_cache = {}
 
         # Generate coverage graph
         self.H = self.generate_decomposed_graph(self.G, self.R)
@@ -27,6 +31,53 @@ class TMSTCStarPlanner(MSTCStarPlanner):
 
     def get_tree(self):
         return self.tree
+
+    def __get_travel_weights__(self, traj):
+        vmax = 0.5
+        a = 0.6
+        omega = 0.8
+        total_time = 0
+
+        def euclidean(p1, p2):
+            return ((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2) ** 0.5
+
+        def travel_time(p1, p2):
+            key = (p1, p2)
+            if key in self._travel_cache:
+                return self._travel_cache[key]
+            d = euclidean(p1, p2)
+            if d <= vmax**2 / a:
+                t = math.sqrt(d / a)
+            else:
+                t = d / vmax + vmax / a
+            self._travel_cache[key] = t
+            return t
+
+        def is_turn(p1, p2, p3):
+            key = (p1, p2, p3)
+            if key in self._turn_cache:
+                return self._turn_cache[key]
+            dx1, dy1 = p2[0] - p1[0], p2[1] - p1[1]
+            dx2, dy2 = p3[0] - p2[0], p3[1] - p2[1]
+            result = (dx1, dy1) != (dx2, dy2)
+            self._turn_cache[key] = result
+            return result
+
+
+        turns = [traj[0]]
+        for i in range(1, len(traj) - 1):
+            if is_turn(traj[i - 1], traj[i], traj[i + 1]):
+                turns.append(traj[i])
+
+        turns.append(traj[-1])
+
+        n = len(turns)
+        for j in range(n-1):
+            total_time += travel_time(turns[j], turns[j + 1])
+
+        
+        total_time += ((n-2) * math.pi) / (2 * omega)
+        return total_time
 
 
 def tmst(G: nx.Graph) -> nx.Graph:
@@ -108,17 +159,18 @@ def merge_bricks(G: nx.Graph, max_independent_set, flow_dict):
 def _calc_costs(candidate_edges, T: nx.Graph, f_values):
     costs = {}
     for u, v in candidate_edges:
-        f_i = f_values[u]
-        f_j = f_values[v]
-        T.add_edge(u, v)
-        fp_i = _f(u, T)
-        fp_j = _f(v, T)
-        T.remove_edge(u, v)
-        costs[(u, v)] = fp_i + fp_j - f_i - f_j
+        # f_i = f_values[u]
+        # f_j = f_values[v]
+        # T.add_edge(u, v)
+        # fp_i = _f(u, T)
+        # fp_j = _f(v, T)
+        # T.remove_edge(u, v)
+        costs[(u, v)] = g(T, u, v) #fp_i + fp_j - f_i - f_j
+        #costs[(u, v)] = fp_i + fp_j - f_i - f_j
     return costs
 
 
-def _f(node, T: nx.Graph):
+def _f_old(node, T: nx.Graph):
     """Number of turns around tree vertex (node)"""
     if T.degree(node) == 1 or T.degree(node) == 3:
         return 2
@@ -143,7 +195,44 @@ def _f(node, T: nx.Graph):
             return 0
         else:
             return 2
-        
+
+def isSameLine(a, b, c):
+    return (a[0]+c[0], a[1]+c[1]) == (2*b[0], 2*b[1])
+
+def _f(node, T:nx.Graph):
+    deg = T.degree(node)
+    if deg == 0: return 0
+    elif deg == 1: return 2
+    elif deg == 2:
+        neighbours = [n for n in T.neighbors(node)]
+        if isSameLine(neighbours[0], node, neighbours[1]): return 0
+        else: return 2
+    elif deg == 3: return 2
+    else: return 4
+
+def g(T: nx.Graph, v1, v2):
+    cost = 0
+    deg1 = T.degree(v1)
+    deg2 = T.degree(v2)
+    neighbours1 = [n for n in T.neighbors(v1)]
+    neighbours2 = [n for n in T.neighbors(v2)]
+
+    if deg1 == 1:
+        if isSameLine(neighbours1[0], v1, v2): cost -= 2
+    elif deg1 == 2:
+        if isSameLine(neighbours1[0], v1, neighbours1[1]): cost += 2
+    elif deg1 == 3:
+        cost += 2
+
+    if deg2 == 1:
+        if isSameLine(v1, v2, neighbours2[0]): cost -= 2
+    elif deg2 == 2:
+        if isSameLine(neighbours2[0], v2, neighbours2[1]): cost += 2
+    elif deg2 == 3:
+        cost += 2
+    
+    return cost
+
 
 def _visualize_bipartite_graph(H, V, B, vertex_cover, independent_set):
     # Use bipartite_layout for clear separation
@@ -172,6 +261,5 @@ def _visualize_bipartite_graph(H, V, B, vertex_cover, independent_set):
 def _segments_share_endpoint(seg1, seg2):
     """Returns True if seg1 and seg2 share an endpoint"""
     return seg1[0] in seg2 or seg1[1] in seg2
-
 
 

@@ -1,9 +1,9 @@
-import sys
 import math
-import networkx as nx
-
+import sys
 from collections import defaultdict, deque
-from utils.nx_graph import nx_graph_read, mst
+
+import networkx as nx
+from utils.nx_graph import mst, nx_graph_read
 
 
 class STCPlanner():
@@ -268,6 +268,50 @@ class STCPlanner():
             weights += self.H[traj[i]][traj[i+1]]['weight']
 
         return weights
+    
+
+    def __get_travel_weights_with_turns__(self, traj):
+        """
+        Compute the total time Ti to traverse the trajectory,
+        including both linear movement and turning time.
+        """
+        # Robot parameters (can be defined globally or passed in)
+        vmax = 0.5      # m/s
+        a = 0.6         # m/s²
+        omega = 0.8     # rad/s
+        turn_angle_rad = math.pi / 2  # 90 degrees in radians
+        total_time = 0
+        twists = traj  # Same as Γ_i in the paper
+
+        def euclidean(p1, p2):
+            return ((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)**0.5
+
+        def is_turn(p1, p2, p3):
+            dx1, dy1 = p2[0] - p1[0], p2[1] - p1[1]
+            dx2, dy2 = p3[0] - p2[0], p3[1] - p2[1]
+            return (dx1, dy1) != (dx2, dy2)
+
+        n = len(twists)
+
+        # --- Translational time between twists ---
+        for j in range(n - 1):
+            dist = euclidean(twists[j], twists[j+1])
+            if dist <= vmax**2 / a:
+                tj = math.sqrt(dist / a)
+            else:
+                tj = dist / vmax + vmax / a
+            total_time += tj
+
+        # --- Turning time: robot makes (n - 2) 90 turns ---
+        num_turns = 0
+        for i in range(1, n - 1):
+            if is_turn(twists[i - 1], twists[i], twists[i + 1]):
+                num_turns += 1
+
+        turn_time = (turn_angle_rad * num_turns) / (2 * omega)
+        total_time += turn_time
+
+        return total_time
 
 
 if __name__ == '__main__':

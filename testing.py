@@ -4,7 +4,6 @@ import matplotlib.animation
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-
 from mcpp.mstc_star_planner import MSTCStarPlanner
 from mcpp.tmstc_star_planner import TMSTCStarPlanner
 from utils.nx_graph import (calc_num_turns, calc_overlapping_ratio, graph_plot,
@@ -80,10 +79,10 @@ for node in G.nodes():
     obs_graph.remove_node(node)
 
 # Run MSTC-Star
-#test('MSTC-Star', G, R, obs_graph)
+test('MSTC-Star', G, R, obs_graph)
 
 # Run TMSTC-Star
-#test('TMSTC-Star', G, R, obs_graph)
+test('TMSTC-Star', G, R, obs_graph)
 
 
 def show(M: nx.Graph, OG: nx.Graph):
