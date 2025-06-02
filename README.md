@@ -1,12 +1,14 @@
 # MSTC-Star
-> code with ICRA'21 paper - MSTC*: Multi-robot Coverage Path Planning under Physical Constraints. [[paper]](https://arxiv.org/abs/2108.04632), [[video]](https://vimeo.com/535512748).
+> This project builds upon the codebase from the ICRA'21 paper:
+MSTC* – Multi-Robot Coverage Path Planning under Physical Constraints. [[paper]](https://arxiv.org/abs/2108.04632), [[video]](https://vimeo.com/535512748).
 
 ## Description
-- **Terrain filtering**: implementations of terrain-slope based map filtering, terrain segmentation network, as well as map fusing and graph generating.
-    > pre-trained model of terrain segmentation network can be downloaded in [[here]](https://drive.google.com/file/d/1RBGVuM3gpWGIcRdU5eVjSI33HmsklTDI/view?usp=sharing)
+We have extended the original implementation to explore and evaluate TMSTC*, a turn-aware variant of MSTC*, designed to further minimize coverage cost by explicitly considering turning penalties in addition to travel distances.
 
-- **Multi-robot coverage path planning (mCPP)**: implementations of *Naive-MSTC*, Balanced-MSTC*, MFC, MSTC(w/ and w/o backtracking)*, see files in *./mcpp* for details.
-
+## Overview
+This repository includes:
+- Original MSTC* and Balanced-MSTC* implementations.
+- TMSTC*: Our extension that incorporates turning costs into the robot path planning logic.
 
 ## Requirments
 - python 3.6 +
@@ -19,13 +21,9 @@
 - rasterio (tested on v.1.1.8)
 - networkx (tested on v.2.5)
   
-## Demos
-
-- terrain filtering
-![Terrain Seg Result](figs/terrain_seg.png)
-
-- mCPP on artificial terrain
-![Terrain Seg Result](figs/artificial_terrain_sim.gif)
-
-- mCPP on real terrain
-![Terrain Seg Result](figs/real_terrain.png)
+## Getting Started
+- 1) Clone this repository: ```bash git clone https://github.com/a-runebou/MSTC_Star.git```
+  2) Run `main.py`
+ 
+## Acknowledgements
+We thank Jingtao Tang for making the original MSTC* code publicly available. Our work builds directly upon this foundation.
